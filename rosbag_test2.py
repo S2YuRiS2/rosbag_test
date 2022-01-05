@@ -7,46 +7,51 @@ import cv2
 import yaml
 from cv_bridge import CvBridge, CvBridgeError
 from threading import Thread
-import queue
+import multiprocessing
+from multiprocessing import freeze_support
 
-test_bagfile ='/home/ros/rosbag/bag_file/subset.bag'
+
+test_bagfile = '/home/ros/ROS_Bag_test/bag_file/subset.bag'
 read_topic = '/usb_cam/image_raw/compressed'
 Directory_Path= '/home/ros/rosbag'
 
-# bag_start_time = 0
 lock = threading.Lock()
 class ROS_Bag():
-    # bag_start_time = 0
-
     def __init__(self):
         print('init')
         rospy.init_node('ROS_bag',anonymous=True)
         self.bag_file = rosbag.Bag(test_bagfile)
-        self.bag_start_time = 0
-        self.update_time(self.bag_start_time)
+        self.running = True
+        self.threads = []
+        self.read_bagfile = self.bag_file
+        self.rate = 0
+        self.bridge = CvBridge()
+        self.secs = 0
+        self.nsecs = 0
+        # self.bag_start_time = 0
+        # self.update_time(self.bag_start_time)
         # self.input_time()
 
-    # def input_time(self):
-    #     # lock.acquire()
-    #     # self.bag_start_time = (int(input("time input : ")))
-    #     # return bag_start_time
-    #     while True:
-    #         self.bag_start_time = (int(input("time input : ")))
-    #         t = threading.Thread(target=self.update_time, args=(self.bag_start_time,))
-    #         t.start()
-    #         t.join()
-    #     # self.update_time(self.bag_start_time)
-    #     # lock.release()
+    # def go(self):
+    #     t1 = threading.Thread(target=self.play)
+    #     t2 = threading.Thread(target=self.input_time)
+    #     t1.daemon = True
+    #     t2.daemon = True
+    #     t1.start()
+    #     t2.start()
+    #     self.threads.append(t1)
+    #     self.threads.append(t2)
 
+    def input_time(self):
+        self.bag_start_time = (int(input("time input : ")))
 
+        self.update_time(self.bag_start_time)
+        # lock.release()
 
     def update_time(self, time):
-        self.bag_start_time = time
 
-        # print(bag_start_time)
-        # lock.acquire()
+        self.bag_start_time = time
         self.time_change(self.bag_start_time)
-        # lock.release()
         # self.time_change(time)
 
     def time_change(self, value):
@@ -65,34 +70,36 @@ class ROS_Bag():
         for i in self.secs_dict.keys():
             if int(value) == i:
                 self.start_secs_time = int(self.secs_dict[i])
-                print(self.start_secs_time)
+                # print(self.start_secs_time)
         for i in self.nsecs_dict.keys():
             if int(value) == i:
                 self.start_nsecs_time = int(self.nsecs_dict[i])
-                print(self.start_nsecs_time)
+                # print(self.start_nsecs_time)
 
-        self.bagfile_time(self.start_secs_time,self.start_nsecs_time)
+        return self.start_secs_time, self.start_nsecs_time
+        # self.bagfile_time(self.start_secs_time,self.start_nsecs_time)
 
-    def bagfile_time(self, secs, nsecs):
-        # print('start')
+    # def bagfile_time(self, secs, nsecs):
+    #     # print('start')
+    #     # self.frame_rate()
+    #     self.read_bagfile = self.bag_file.read_messages(read_topic, start_time=rospy.Time(secs,nsecs))
+    #     self.play(self.read_bagfile)
+
+    def play(self, secs,nsecs):
+        self.secs = secs
+        self.nsecs = nsecs
+        # while(self.running):
         self.frame_rate()
-        self.bridge = CvBridge()
-        self.read_bagfile = self.bag_file.read_messages(read_topic, start_time=rospy.Time(secs,nsecs))
-        self.play()
+        while True:
+            for topic, msg, t in self.bag_file.read_messages(read_topic, start_time=rospy.Time(secs, nsecs)):
+                time.sleep(self.rate)
+                cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+                cv2.imshow('cv_img', cv_image)
+                key = cv2.waitKey(1)
 
-    def play(self):
-        # print('start')
-        # lock.acquire()
-        for topic, msg, t in self.read_bagfile:
-            time.sleep(self.rate)
-            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
-            cv2.imshow('cv_img', cv_image)
-
-            key = cv2.waitKey(1)
-            if key == 27:
-                self.bag_close()
-                break
-        # lock.release()
+                if key == 27:
+                    self.bag_close()
+                    break
 
     def bag_close(self):
         self.bag_file.close()
@@ -107,28 +114,37 @@ class ROS_Bag():
         compressed_message = compressed_topic[0].get('messages')
         self.rate = (compressed_message/duration)/1000
 
+# def join_threads(threads):
+#     for t in threads:
+#         while t.is_alive():
+#             t.join(5)
+#             # print(t)
+
+
 def main():
-    time = int(input("입력 : "))
-if __name__ == '__main__':
     r = ROS_Bag()
+    process =[]
+    while True:
+        i = input("입력 : ")
+        # (v1,v2) = r.time_change(i)
+        # r.play(v1,v2)
+        if i == 'q':
+            break
 
-    # time = int(input("입력 : "))
-    #
-    # # num = int(time)
-    # t = threading.Thread(target=r.update_time,args=(time,))
-    # t.start()
+        elif i.isdigit():
+            (v1, v2) = r.time_change(i)
+            t1 = multiprocessing.Process(target=r.play, args=(v1, v2))
+            # t1.daemon=True
+            t1.start()
+            process.append(t1)
+        for t1 in process:
+            t1.terminate()
 
 
-    # while True:
-    #     t1 = Thread(target=r.input_time)
-    #     t2 = Thread(target=r.play)
-    #     # t2 = Thread(target=r.bagfile_time)
-    #     t1.start()
-    #     t2.start()
-    #     t1.join()
-    #     # t2.join()
 
 
+if __name__ == '__main__':
+    main()
 
 
 

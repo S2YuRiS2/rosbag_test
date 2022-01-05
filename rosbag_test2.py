@@ -137,8 +137,8 @@ def main():
             # t1.daemon=True
             t1.start()
             process.append(t1)
-        for t1 in process:
-            t1.terminate()
+        # for t1 in process:
+            # t1.terminate()
 
 
 

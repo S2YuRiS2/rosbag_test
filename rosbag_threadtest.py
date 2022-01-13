@@ -12,23 +12,29 @@ test_bagfile ='/home/ros/ROS_Bag_test/bag_file/subset.bag'
 read_topic = '/usb_cam/image_raw/compressed'
 
 lock = threading.Lock()
+
 class ROS_Bag():
     def __init__(self):
         print('init')
         rospy.init_node('ROS_bag', anonymous=True)
         self.bag_file = rosbag.Bag(test_bagfile)
-        self.running = True
-        self.threads = []
         self.bridge = CvBridge()
-        self.rate = 0
         self.start_secs_time = 0
         self.start_nsecs_time = 0
         self.t = 0
+        self.list1 = [0]
+        self.flag = False
 
     def input_time(self):
+        print("start")
         while True:
-            self.t = int(input("\n입력 : \n"))
-            self.time_change(self.t)
+            self.t = int(input("\n입력 : "))
+            self.list1.append(self.t)
+            print("list print ", self.list1)
+
+            if self.list1[0] != self.list1[-1]:
+                self.flag = True
+                print('list index not true')
 
     def time_change(self, value):
         secs_list = []
@@ -45,17 +51,24 @@ class ROS_Bag():
 
     def play(self):
         self.frame_rate()
-        for topic, msg, t in self.bag_file.read_messages(read_topic, start_time=rospy.Time(self.start_secs_time, self.start_nsecs_time)):
-            # print(t.secs)
-            # time.sleep(1)
-            time.sleep(self.rate)
-            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
-            cv2.imshow('cv_img', cv_image)
-            key = cv2.waitKey(1)
+        while True :
+            for topic, msg, t in self.bag_file.read_messages(read_topic, start_time=rospy.Time(self.start_secs_time, self.start_nsecs_time)):
+                cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+                cv2.imshow('cv_img', cv_image)
+                time.sleep(self.rate)
+                key = cv2.waitKey(1)
 
-            if key == 27:
-                self.bag_close()
-                break
+                if self.flag == True:
+                    print("success")
+                    self.time_change(self.list1[-1])
+                    self.flag = False
+                    if self.flag == False:
+                        del self.list1[-1]
+                    break
+
+                if key == 27:
+                    self.bag_close()
+                    break
 
     def bag_close(self):
         self.bag_file.close()
@@ -77,10 +90,5 @@ if __name__ == '__main__':
 
     t1 = Thread(target=r.input_time)
     t2 = Thread(target=r.play)
-    # t1.daemon = True
     t1.start()
     t2.start()
-    # time.sleep(5)
-
-    # t1.join()
-    # t2.start()
